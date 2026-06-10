@@ -304,8 +304,120 @@ async function deleteProduct(productId) {
   }
 }
 
-function editProduct(productId) {
-  alert('Edit functionality can be implemented. Product ID: ' + productId);
+async function editProduct(productId) {
+  try {
+    // Fetch the product details
+    const response = await fetch(`/api/products/${productId}`);
+    if (!response.ok) {
+      showMessage('productsMessage', 'Error loading product details', 'error');
+      return;
+    }
+
+    const product = await response.json();
+
+    // Create or show edit modal
+    let modal = document.getElementById('editProductModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'editProductModal';
+      modal.innerHTML = `
+        <div style="
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0,0,0,0.7);
+          display: none;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+        " id="editProductModalBackdrop">
+          <div style="
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+          ">
+            <h2 style="color: #1e3c72; margin-top: 0;">Edit Product</h2>
+            <form id="editProductForm" onsubmit="submitProductEdit(event)">
+              <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Product Name *</label>
+                <input type="text" id="editProductName" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
+              </div>
+              <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Description</label>
+                <textarea id="editProductDesc" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; min-height: 100px;"></textarea>
+              </div>
+              <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Price (KES) *</label>
+                <input type="number" id="editProductPrice" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
+              </div>
+              <div style="margin-bottom: 2rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Image URL</label>
+                <input type="text" id="editProductImage" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
+              </div>
+              <div style="display: flex; gap: 10px;">
+                <button type="submit" style="flex: 1; padding: 10px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Save Changes</button>
+                <button type="button" onclick="closeEditModal()" style="flex: 1; padding: 10px; background: #ccc; color: #333; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    // Populate form with product data
+    document.getElementById('editProductName').value = product.name;
+    document.getElementById('editProductDesc').value = product.description || '';
+    document.getElementById('editProductPrice').value = product.price;
+    document.getElementById('editProductImage').value = product.image || '';
+    document.getElementById('editProductForm').dataset.productId = productId;
+
+    // Show modal
+    document.getElementById('editProductModalBackdrop').style.display = 'flex';
+  } catch (error) {
+    console.error('Error opening edit modal:', error);
+    showMessage('productsMessage', 'Error loading product', 'error');
+  }
+}
+
+function closeEditModal() {
+  const backdrop = document.getElementById('editProductModalBackdrop');
+  if (backdrop) {
+    backdrop.style.display = 'none';
+  }
+}
+
+async function submitProductEdit(event) {
+  event.preventDefault();
+
+  const productId = document.getElementById('editProductForm').dataset.productId;
+  const name = document.getElementById('editProductName').value;
+  const description = document.getElementById('editProductDesc').value;
+  const price = document.getElementById('editProductPrice').value;
+  const image = document.getElementById('editProductImage').value;
+
+  try {
+    const response = await fetch(`/api/products/${productId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description, price: parseInt(price), image })
+    });
+
+    if (response.ok) {
+      showMessage('productsMessage', `Product updated successfully`, 'success');
+      closeEditModal();
+      loadProducts();
+      loadStats();
+    } else {
+      const error = await response.json();
+      showMessage('productsMessage', `Error: ${error.error}`, 'error');
+    }
+  } catch (error) {
+    console.error('Error updating product:', error);
+    showMessage('productsMessage', 'Error updating product', 'error');
+  }
 }
 
 // ============================================

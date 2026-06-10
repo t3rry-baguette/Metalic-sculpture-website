@@ -230,4 +230,303 @@ document.addEventListener('DOMContentLoaded', function() {
       }, index * 150);
     });
   });
+
+  // ============================================
+  // DYNAMIC PRODUCT LOADING
+  // ============================================
+  loadDynamicProducts();
 });
+
+/**
+ * Load products from API and render them dynamically
+ */
+async function loadDynamicProducts() {
+  try {
+    // Check if we're on a page that displays products
+    const masonryGrid = document.querySelector('.masonry-grid');
+    if (!masonryGrid) return; // Not on a product display page
+    
+    console.log('🔄 Loading products from API...');
+    const products = await fetchAllProducts();
+    
+    if (products.length === 0) {
+      console.warn('⚠️  No products found');
+      return;
+    }
+    
+    // Get the category from the page URL or default to 'all'
+    const currentPage = window.location.pathname;
+    const categories = {
+      'lion': 'Lion',
+      'elephant': 'Elephant',
+      'giraffe': 'Giraffe',
+      'rhino': 'Rhino',
+      'bird': 'Bird'
+    };
+    
+    // For now, dynamically create product items based on product names
+    const productElements = products.map(product => {
+      const productName = product.name.toLowerCase();
+      let category = 'custom'; // default category
+      
+      for (const [key, value] of Object.entries(categories)) {
+        if (productName.includes(key) || productName.includes(value.toLowerCase())) {
+          category = key;
+          break;
+        }
+      }
+      
+      return createProductElement(product, category);
+    });
+    
+    // Clear existing hardcoded items and add API-loaded items
+    const existingItems = masonryGrid.querySelectorAll('.masonry-item');
+    existingItems.forEach(item => item.remove());
+    
+    productElements.forEach(el => masonryGrid.appendChild(el));
+    console.log(`✓ ${products.length} products loaded and rendered`);
+    
+    // Re-initialize event listeners on new elements
+    initializeProductEventListeners();
+    
+  } catch (error) {
+    console.error('❌ Error loading dynamic products:', error);
+  }
+}
+
+/**
+ * Create a product element from product data
+ */
+function createProductElement(product, category = 'custom') {
+  const item = document.createElement('div');
+  item.className = 'masonry-item';
+  item.setAttribute('data-category', category);
+  item.setAttribute('data-product-id', product.id);
+  item.id = `product-${product.id}`;
+  
+  // Determine icon based on category
+  const categoryIcons = {
+    'lion': '🦁',
+    'elephant': '🐘',
+    'giraffe': '🦒',
+    'rhino': '🦏',
+    'bird': '🦅',
+    'custom': '🎨'
+  };
+  
+  const icon = categoryIcons[category] || '🎨';
+  
+  item.innerHTML = `
+    <div style="background: linear-gradient(135deg, #2a5298 0%, #1e3c72 100%); display: flex; align-items: center; justify-content: center; min-height: 250px; font-size: 4rem; border-radius: 8px;">
+      ${icon}
+    </div>
+    <div class="overlay">
+      <div class="overlay-content">
+        <h3>${product.name}</h3>
+        <p style="font-size: 0.9em; margin-top: 0.5rem; color: rgba(255,255,255,0.8);">${formatPrice(product.price)}</p>
+        <button class="btn btn-primary" onclick="openOrderForm('${product.id}', '${product.name}')" style="margin-top: 0.5rem; font-size: 0.85em; padding: 8px 16px;">Order Now</button>
+      </div>
+    </div>
+  `;
+  
+  return item;
+}
+
+/**
+ * Initialize event listeners on product elements
+ */
+function initializeProductEventListeners() {
+  // Add click listeners to masonry items for lightbox
+  document.querySelectorAll('.masonry-item').forEach(item => {
+    item.style.cursor = 'pointer';
+    item.addEventListener('click', function(e) {
+      // Don't trigger lightbox if clicking the Order Now button
+      if (e.target.closest('button')) return;
+      
+      const productId = this.getAttribute('data-product-id');
+      const productName = this.querySelector('h3').textContent;
+      console.log(`📷 Opening lightbox for ${productName}`);
+    });
+  });
+}
+
+/**
+ * Open order form modal with product selected
+ */
+function openOrderForm(productId, productName) {
+  console.log(`🛒 Opening order form for product: ${productName}`);
+  
+  // Check if modal already exists
+  let modal = document.getElementById('orderModal');
+  
+  if (!modal) {
+    // Create modal if it doesn't exist
+    modal = document.createElement('div');
+    modal.id = 'orderModal';
+    modal.className = 'order-modal';
+    modal.innerHTML = `
+      <div class="order-modal-content">
+        <button class="modal-close" onclick="closeOrderForm()">✕</button>
+        <h2>Place Your Order</h2>
+        <form id="orderForm" onsubmit="submitOrder(event)">
+          <div class="form-group">
+            <label for="productSelect">Product *</label>
+            <input type="text" id="productSelect" readonly style="background: #f0f0f0;">
+          </div>
+          
+          <div class="form-group">
+            <label for="customerName">Your Name *</label>
+            <input type="text" id="customerName" placeholder="Enter your full name" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="customerPhone">Phone Number *</label>
+            <input type="tel" id="customerPhone" placeholder="e.g., +254 700 000 000" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="customerMessage">Additional Message</label>
+            <textarea id="customerMessage" placeholder="Any special requests or customizations?" rows="4"></textarea>
+          </div>
+          
+          <div style="margin-top: 2rem;">
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px;">Submit Order</button>
+            <button type="button" class="btn" onclick="closeOrderForm()" style="width: 100%; padding: 12px; margin-top: 0.5rem; background: #ccc; color: #333;">Cancel</button>
+          </div>
+        </form>
+      </div>
+    `;
+    
+    // Add modal styles
+    const style = document.createElement('style');
+    style.textContent = `
+      .order-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 10000;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .order-modal.active {
+        display: flex;
+      }
+      
+      .order-modal-content {
+        background: white;
+        border-radius: 12px;
+        padding: 30px;
+        max-width: 500px;
+        width: 90%;
+        position: relative;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      }
+      
+      .order-modal-content h2 {
+        margin-top: 0;
+        color: #1e3c72;
+        margin-bottom: 2rem;
+      }
+      
+      .modal-close {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #666;
+      }
+      
+      .modal-close:hover {
+        color: #000;
+      }
+      
+      .form-group {
+        margin-bottom: 1.5rem;
+      }
+      
+      .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #333;
+      }
+      
+      .form-group input,
+      .form-group textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 1rem;
+        font-family: inherit;
+      }
+      
+      .form-group input:focus,
+      .form-group textarea:focus {
+        outline: none;
+        border-color: #2a5298;
+        box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.1);
+      }
+    `;
+    document.head.appendChild(style);
+    document.body.appendChild(modal);
+  }
+  
+  // Populate product and show modal
+  document.getElementById('productSelect').value = productName;
+  modal.setAttribute('data-product-id', productId);
+  modal.classList.add('active');
+}
+
+/**
+ * Close the order form modal
+ */
+function closeOrderForm() {
+  const modal = document.getElementById('orderModal');
+  if (modal) {
+    modal.classList.remove('active');
+    // Reset form
+    document.getElementById('orderForm').reset();
+  }
+}
+
+/**
+ * Submit the order form
+ */
+async function submitOrder(event) {
+  event.preventDefault();
+  
+  const modal = document.getElementById('orderModal');
+  const productId = modal.getAttribute('data-product-id');
+  const productName = document.getElementById('productSelect').value;
+  const customerName = document.getElementById('customerName').value;
+  const customerPhone = document.getElementById('customerPhone').value;
+  const customerMessage = document.getElementById('customerMessage').value;
+  
+  // Validation
+  if (!customerName || !customerPhone) {
+    alert('Please fill in all required fields');
+    return;
+  }
+  
+  try {
+    console.log('🔄 Submitting order...');
+    const order = await createOrder(customerName, customerPhone, productName, customerMessage);
+    
+    console.log('✓ Order submitted successfully:', order);
+    alert(`✓ Order submitted successfully!\n\nOrder #${order.id}\nWe'll contact you at ${customerPhone} to confirm the details.`);
+    
+    closeOrderForm();
+  } catch (error) {
+    console.error('❌ Error submitting order:', error);
+    alert(`❌ Error submitting order: ${error.message}`);
+  }
+}
