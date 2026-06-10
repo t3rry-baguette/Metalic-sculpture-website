@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard — Jua Kali Sculptures</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        header h1 {
+            color: #1e3c72;
+            font-size: 2em;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-box {
+            background: #f8f9fa;
+            padding: 15px 25px;
+            border-radius: 6px;
+            border-left: 4px solid #2a5298;
+        }
+
+        .stat-box label {
+            display: block;
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .stat-box .value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #1e3c72;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 12px 24px;
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            color: #333;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn:hover {
+            border-color: #2a5298;
+            color: #2a5298;
+        }
+
+        .tab-btn.active {
+            background: #2a5298;
+            color: white;
+            border-color: #2a5298;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .controls input,
+        .controls select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1em;
+        }
+
+        .controls button {
+            padding: 10px 20px;
+            background: #2a5298;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s ease;
+        }
+
+        .controls button:hover {
+            background: #1e3c72;
+        }
+
+        .filter-input {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .orders-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .order-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #ffc107;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .order-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .order-card.completed {
+            border-left-color: #28a745;
+        }
+
+        .order-card.pending {
+            border-left-color: #ffc107;
+        }
+
+        .order-card.cancelled {
+            border-left-color: #dc3545;
+            opacity: 0.7;
+        }
+
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+
+        .order-id {
+            font-weight: 600;
+            color: #1e3c72;
+            font-size: 1.1em;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-badge.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-badge.completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-badge.cancelled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .order-field {
+            margin: 12px 0;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .order-field:last-of-type {
+            border-bottom: none;
+        }
+
+        .field-label {
+            font-size: 0.9em;
+            color: #666;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 3px;
+        }
+
+        .field-value {
+            color: #333;
+            font-size: 1em;
+            word-break: break-word;
+        }
+
+        .order-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .btn-complete {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-complete:hover {
+            background: #218838;
+        }
+
+        .btn-cancel {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-cancel:hover {
+            background: #c82333;
+        }
+
+        .btn-delete {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background: #5a6268;
+        }
+
+        .btn-pending {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-pending:hover {
+            background: #e0a800;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 8px;
+            color: #666;
+        }
+
+        .empty-state h2 {
+            color: #1e3c72;
+            margin-bottom: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.1em;
+            color: #666;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+        }
+
+        .products-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .product-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .product-header {
+            font-weight: 600;
+            color: #1e3c72;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+
+        .product-desc {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+
+        .product-price {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #28a745;
+            margin-bottom: 15px;
+        }
+
+        .product-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .product-actions button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .stats {
+                width: 100%;
+            }
+
+            .orders-container,
+            .products-container {
+                grid-template-columns: 1fr;
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .controls input,
+            .controls select,
+            .controls button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER WITH STATS -->
+        <header>
+            <div>
+                <h1>📊 Admin Dashboard</h1>
+                <p style="color: #666; margin-top: 5px;">Jua Kali Sculptures Order Management</p>
+            </div>
+            <div class="stats">
+                <div class="stat-box">
+                    <label>Total Orders</label>
+                    <div class="value" id="totalOrders">0</div>
+                </div>
+                <div class="stat-box">
+                    <label>Pending</label>
+                    <div class="value" id="pendingOrders" style="color: #ffc107;">0</div>
+                </div>
+                <div class="stat-box">
+                    <label>Completed</label>
+                    <div class="value" id="completedOrders" style="color: #28a745;">0</div>
+                </div>
+                <div class="stat-box">
+                    <label>Total Products</label>
+                    <div class="value" id="totalProducts">0</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- TABS -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('orders')">📦 Orders</button>
+            <button class="tab-btn" onclick="showTab('products')">🎨 Products</button>
+            <button class="tab-btn" onclick="showTab('api')">🔌 API Docs</button>
+        </div>
+
+        <!-- ORDERS TAB -->
+        <div id="orders" class="tab-content active">
+            <div class="controls">
+                <input type="text" class="filter-input" id="searchFilter" placeholder="Search by customer name or phone...">
+                <select id="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+                <button onclick="loadOrders()">🔄 Refresh</button>
+            </div>
+
+            <div id="ordersMessage"></div>
+            <div class="orders-container" id="ordersContainer">
+                <div class="loading">Loading orders...</div>
+            </div>
+        </div>
+
+        <!-- PRODUCTS TAB -->
+        <div id="products" class="tab-content">
+            <div class="controls">
+                <button onclick="loadProducts()">🔄 Refresh</button>
+            </div>
+
+            <div id="productsMessage"></div>
+            <div class="products-container" id="productsContainer">
+                <div class="loading">Loading products...</div>
+            </div>
+        </div>
+
+        <!-- API DOCS TAB -->
+        <div id="api" class="tab-content">
+            <div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);">
+                <h2 style="color: #1e3c72; margin-bottom: 20px;">API Documentation</h2>
+
+                <h3 style="margin-top: 30px; color: #2a5298;">📦 Products Endpoints</h3>
+                <pre style="background: #f8f9fa; padding: 15px; border-radius: 6px; overflow-x: auto;"><code>GET    /api/products                 → Get all products
+GET    /api/products/:id             → Get product by ID
+POST   /api/products                 → Create new product
+PUT    /api/products/:id             → Update product
+DELETE /api/products/:id             → Delete product</code></pre>
+
+                <h3 style="margin-top: 30px; color: #2a5298;">📋 Orders Endpoints</h3>
+                <pre style="background: #f8f9fa; padding: 15px; border-radius: 6px; overflow-x: auto;"><code>GET    /api/orders                  → Get all orders
+GET    /api/orders/:id               → Get order by ID
+POST   /api/orders                   → Create new order
+PUT    /api/orders/:id               → Update order status
+DELETE /api/orders/:id               → Delete order</code></pre>
+
+                <h3 style="margin-top: 30px; color: #2a5298;">💊 Utility Endpoints</h3>
+                <pre style="background: #f8f9fa; padding: 15px; border-radius: 6px; overflow-x: auto;"><code>GET    /api/health                  → Health check
+GET    /api/stats                    → Database statistics</code></pre>
+
+                <h3 style="margin-top: 30px; color: #2a5298;">📝 Example: Create Order</h3>
+                <pre style="background: #f8f9fa; padding: 15px; border-radius: 6px; overflow-x: auto;"><code>curl -X POST http://localhost:3000/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerName": "John Doe",
+    "phone": "+254712345678",
+    "product": "Lion Sculpture",
+    "message": "Please make it extra large"
+  }'</code></pre>
+
+                <h3 style="margin-top: 30px; color: #2a5298;">📝 Example: Create Product</h3>
+                <pre style="background: #f8f9fa; padding: 15px; border-radius: 6px; overflow-x: auto;"><code>curl -X POST http://localhost:3000/api/products \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Custom Zebra",
+    "description": "Hand-welded zebra sculpture",
+    "price": 32000,
+    "image": "/images/zebra.svg"
+  }'</code></pre>
+
+                <h3 style="margin-top: 30px; color: #2a5298;">🔄 Update Order Status</h3>
+                <pre style="background: #f8f9fa; padding: 15px; border-radius: 6px; overflow-x: auto;"><code>curl -X PUT http://localhost:3000/api/orders/1 \
+  -H "Content-Type: application/json" \
+  -d '{"status": "completed"}'</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>
