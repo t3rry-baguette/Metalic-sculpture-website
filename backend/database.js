@@ -43,6 +43,10 @@ function initializeDatabase() {
       product TEXT NOT NULL,
       message TEXT,
       status TEXT DEFAULT 'pending',
+      customizations TEXT,
+      totalPrice INTEGER,
+      email TEXT,
+      deliveryLocation TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `, (err) => {
@@ -50,6 +54,8 @@ function initializeDatabase() {
       console.error('Error creating orders table:', err.message);
     } else {
       console.log('✓ Orders table ready');
+      // Run migration to add new columns to existing databases
+      runOrdersMigration();
     }
   });
 }
@@ -112,4 +118,23 @@ function checkAndAddSampleProducts() {
   });
 }
 
+// Add new columns to existing orders table (safe migration)
+function runOrdersMigration() {
+  const newCols = [
+    'customizations TEXT',
+    'totalPrice INTEGER',
+    'email TEXT',
+    'deliveryLocation TEXT'
+  ];
+  newCols.forEach(col => {
+    db.run(`ALTER TABLE orders ADD COLUMN ${col}`, (err) => {
+      // Silently ignore "duplicate column name" — means column already exists
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error(`Migration error (${col}):`, err.message);
+      }
+    });
+  });
+}
+
 module.exports = db;
+

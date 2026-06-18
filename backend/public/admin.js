@@ -1,4 +1,114 @@
 // ============================================
+// AUTHENTICATION UTILITIES
+// ============================================
+
+function getAuthHeaders() {
+  const token = localStorage.getItem('adminToken');
+  return {
+    'Authorization': `Bearer ${token}`
+  };
+}
+
+function getJsonHeaders() {
+  const token = localStorage.getItem('adminToken');
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
+}
+
+function handleAuthError(response) {
+  if (response.status === 401) {
+    console.warn('Unauthorized or session expired. Redirecting to login...');
+    handleLogout();
+    return true;
+  }
+  return false;
+}
+
+// Check if token exists and verify
+document.addEventListener('DOMContentLoaded', () => {
+  const token = localStorage.getItem('adminToken');
+  const overlay = document.getElementById('loginOverlay');
+
+  if (token) {
+    overlay.style.display = 'none';
+    initializeDashboard();
+  } else {
+    overlay.style.display = 'flex';
+  }
+});
+
+function initializeDashboard() {
+  loadOrders();
+  loadProducts();
+  loadStats();
+
+  // Auto-refresh every 30 seconds
+  setInterval(() => {
+    if (localStorage.getItem('adminToken')) {
+      loadStats();
+      if (document.getElementById('orders').classList.contains('active')) {
+        loadOrders();
+      }
+    }
+  }, 30000);
+
+  // Filter and search listeners
+  document.getElementById('searchFilter').addEventListener('input', filterOrders);
+  document.getElementById('statusFilter').addEventListener('change', filterOrders);
+}
+
+// Handle Login
+async function handleLoginSubmit(event) {
+  event.preventDefault();
+  const username = document.getElementById('loginUsername').value;
+  const password = document.getElementById('loginPassword').value;
+  const errorMsg = document.getElementById('loginErrorMessage');
+
+  try {
+    const response = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      localStorage.setItem('adminToken', data.token);
+      document.getElementById('loginOverlay').style.display = 'none';
+      errorMsg.style.display = 'none';
+      
+      // Clear forms
+      document.getElementById('loginForm').reset();
+      
+      // Load app
+      initializeDashboard();
+    } else {
+      errorMsg.textContent = data.error || 'Authentication failed';
+      errorMsg.style.display = 'block';
+    }
+  } catch (error) {
+    console.error('Error logging in:', error);
+    errorMsg.textContent = 'Server connection failed';
+    errorMsg.style.display = 'block';
+  }
+}
+
+// Handle Logout
+function handleLogout() {
+  localStorage.removeItem('adminToken');
+  document.getElementById('loginOverlay').style.display = 'flex';
+  
+  // Clear statistical summaries
+  document.getElementById('totalProducts').textContent = '0';
+  document.getElementById('totalOrders').textContent = '0';
+  document.getElementById('pendingOrders').textContent = '0';
+  document.getElementById('completedOrders').textContent = '0';
+}
+
+// ============================================
 // TAB NAVIGATION
 // ============================================
 
@@ -26,42 +136,28 @@ function showTab(tabName) {
 }
 
 // ============================================
-// INITIALIZE ON PAGE LOAD
-// ============================================
-
-document.addEventListener('DOMContentLoaded', () => {
-  loadOrders();
-  loadProducts();
-  loadStats();
-
-  // Auto-refresh every 30 seconds
-  setInterval(() => {
-    loadStats();
-    if (document.getElementById('orders').classList.contains('active')) {
-      loadOrders();
-    }
-  }, 30000);
-
-  // Filter and search listeners
-  document.getElementById('searchFilter').addEventListener('input', filterOrders);
-  document.getElementById('statusFilter').addEventListener('change', filterOrders);
-});
-
-// ============================================
 // LOAD STATISTICS
 // ============================================
 
 async function loadStats() {
   try {
-    const response = await fetch('/api/stats');
-    const data = await response.json();
+    const response = await fetch('/api/stats', {
+      headers: getAuthHeaders()
+    });
 
+    if (handleAuthError(response)) return;
+
+    const data = await response.json();
     document.getElementById('totalProducts').textContent = data.products;
 
     // Get order stats
-    const ordersResponse = await fetch('/api/orders');
-    const orders = await ordersResponse.json();
+    const ordersResponse = await fetch('/api/orders', {
+      headers: getAuthHeaders()
+    });
 
+    if (handleAuthError(ordersResponse)) return;
+
+    const orders = await ordersResponse.json();
     document.getElementById('totalOrders').textContent = orders.length;
 
     const pendingCount = orders.filter(o => o.status === 'pending').length;
@@ -82,7 +178,12 @@ let allOrders = [];
 
 async function loadOrders() {
   try {
-    const response = await fetch('/api/orders');
+    const response = await fetch('/api/orders', {
+      headers: getAuthHeaders()
+    });
+
+    if (handleAuthError(response)) return;
+
     allOrders = await response.json();
     renderOrders(allOrders);
     showMessage('ordersMessage', '');
@@ -105,67 +206,127 @@ function renderOrders(orders) {
     return;
   }
 
-  container.innerHTML = orders.map(order => `
-    <div class="order-card ${order.status}">
-      <div class="order-header">
-        <div class="order-id">Order #${order.id}</div>
-        <span class="status-badge ${order.status}">${order.status}</span>
-      </div>
-
+  container.innerHTML = orders.map(order => {
+    // Formatting optional columns
+    const emailHtml = order.email ? `
       <div class="order-field">
-        <div class="field-label">Customer Name</div>
-        <div class="field-value">${escapeHtml(order.customerName)}</div>
-      </div>
-
-      <div class="order-field">
-        <div class="field-label">Phone</div>
+        <div class="field-label">Email</div>
         <div class="field-value">
-          <a href="tel:${order.phone}" style="color: #2a5298; text-decoration: none;">
-            ${escapeHtml(order.phone)}
+          <a href="mailto:${order.email}" style="color: var(--copper); text-decoration: none;">
+            ${escapeHtml(order.email)}
           </a>
         </div>
       </div>
+    ` : '';
 
+    const locationHtml = order.deliveryLocation ? `
       <div class="order-field">
-        <div class="field-label">Product</div>
-        <div class="field-value">${escapeHtml(order.product)}</div>
+        <div class="field-label">Delivery Location</div>
+        <div class="field-value">${escapeHtml(order.deliveryLocation)}</div>
       </div>
+    ` : '';
 
+    const priceHtml = order.totalPrice ? `
       <div class="order-field">
-        <div class="field-label">Message</div>
-        <div class="field-value">${escapeHtml(order.message || '(No message)')}</div>
+        <div class="field-label">Total Price</div>
+        <div class="field-value" style="font-weight: 600; color: var(--copper);">
+          KES ${order.totalPrice.toLocaleString()}
+        </div>
       </div>
+    ` : '';
 
-      <div class="order-field">
-        <div class="field-label">Date</div>
-        <div class="field-value">${formatDate(order.createdAt)}</div>
-      </div>
+    let customizationsHtml = '';
+    if (order.customizations) {
+      try {
+        const items = JSON.parse(order.customizations);
+        if (Array.isArray(items) && items.length > 0) {
+          customizationsHtml = `
+            <div class="order-field">
+              <div class="field-label">Customizations</div>
+              <div class="field-value">
+                ${items.map(item => `<span class="customization-tag">${escapeHtml(item)}</span>`).join('')}
+              </div>
+            </div>
+          `;
+        }
+      } catch (e) {
+        customizationsHtml = `
+          <div class="order-field">
+            <div class="field-label">Customizations</div>
+            <div class="field-value">${escapeHtml(order.customizations)}</div>
+          </div>
+        `;
+      }
+    }
 
-      <div class="order-actions">
-        ${order.status !== 'completed' ? `
-          <button class="btn btn-complete" onclick="updateOrderStatus(${order.id}, 'completed')">
-            ✓ Mark Complete
+    return `
+      <div class="order-card ${order.status}">
+        <div class="order-header">
+          <div class="order-id">Order #${order.id}</div>
+          <span class="status-badge ${order.status}">${order.status}</span>
+        </div>
+
+        <div class="order-field">
+          <div class="field-label">Customer Name</div>
+          <div class="field-value">${escapeHtml(order.customerName)}</div>
+        </div>
+
+        <div class="order-field">
+          <div class="field-label">Phone</div>
+          <div class="field-value">
+            <a href="tel:${order.phone}" style="color: var(--copper); text-decoration: none; font-weight: 600;">
+              ${escapeHtml(order.phone)}
+            </a>
+          </div>
+        </div>
+
+        ${emailHtml}
+
+        <div class="order-field">
+          <div class="field-label">Product</div>
+          <div class="field-value">${escapeHtml(order.product)}</div>
+        </div>
+
+        ${priceHtml}
+        ${locationHtml}
+        ${customizationsHtml}
+
+        <div class="order-field">
+          <div class="field-label">Message</div>
+          <div class="field-value">${escapeHtml(order.message || '(No message)')}</div>
+        </div>
+
+        <div class="order-field">
+          <div class="field-label">Date</div>
+          <div class="field-value">${formatDate(order.createdAt)}</div>
+        </div>
+
+        <div class="order-actions">
+          ${order.status !== 'completed' ? `
+            <button class="btn btn-complete" onclick="updateOrderStatus(${order.id}, 'completed')">
+              ✓ Mark Complete
+            </button>
+          ` : ''}
+          
+          ${order.status !== 'cancelled' ? `
+            <button class="btn btn-cancel" onclick="updateOrderStatus(${order.id}, 'cancelled')">
+              ✗ Cancel
+            </button>
+          ` : ''}
+          
+          ${order.status === 'cancelled' ? `
+            <button class="btn btn-pending" onclick="updateOrderStatus(${order.id}, 'pending')">
+              ↺ Restore
+            </button>
+          ` : ''}
+          
+          <button class="btn btn-delete" onclick="deleteOrder(${order.id})">
+            🗑 Delete
           </button>
-        ` : ''}
-        
-        ${order.status !== 'cancelled' ? `
-          <button class="btn btn-cancel" onclick="updateOrderStatus(${order.id}, 'cancelled')">
-            ✗ Cancel
-          </button>
-        ` : ''}
-        
-        ${order.status === 'cancelled' ? `
-          <button class="btn btn-pending" onclick="updateOrderStatus(${order.id}, 'pending')">
-            ↺ Restore
-          </button>
-        ` : ''}
-        
-        <button class="btn btn-delete" onclick="deleteOrder(${order.id})">
-          🗑 Delete
-        </button>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function filterOrders() {
@@ -175,7 +336,9 @@ function filterOrders() {
   const filtered = allOrders.filter(order => {
     const matchesSearch = 
       order.customerName.toLowerCase().includes(searchTerm) ||
-      order.phone.toLowerCase().includes(searchTerm);
+      order.phone.toLowerCase().includes(searchTerm) ||
+      (order.email && order.email.toLowerCase().includes(searchTerm)) ||
+      order.product.toLowerCase().includes(searchTerm);
     
     const matchesStatus = !statusFilter || order.status === statusFilter;
 
@@ -189,9 +352,11 @@ async function updateOrderStatus(orderId, newStatus) {
   try {
     const response = await fetch(`/api/orders/${orderId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getJsonHeaders(),
       body: JSON.stringify({ status: newStatus })
     });
+
+    if (handleAuthError(response)) return;
 
     if (response.ok) {
       showMessage('ordersMessage', `Order #${orderId} marked as ${newStatus}`, 'success');
@@ -214,8 +379,11 @@ async function deleteOrder(orderId) {
 
   try {
     const response = await fetch(`/api/orders/${orderId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeaders()
     });
+
+    if (handleAuthError(response)) return;
 
     if (response.ok) {
       showMessage('ordersMessage', `Order #${orderId} deleted`, 'success');
@@ -262,22 +430,125 @@ function renderProducts(products) {
     return;
   }
 
-  container.innerHTML = products.map(product => `
-    <div class="product-card">
-      <div class="product-header">${escapeHtml(product.name)}</div>
-      <div class="product-desc">${escapeHtml(product.description || 'No description')}</div>
-      <div class="product-price">KES ${product.price.toLocaleString()}</div>
-      
-      <div class="product-actions">
-        <button onclick="editProduct(${product.id})" style="background: #2a5298; color: white;">
-          ✎ Edit
-        </button>
-        <button onclick="deleteProduct(${product.id})" style="background: #dc3545; color: white;">
-          🗑 Delete
-        </button>
+  container.innerHTML = products.map(product => {
+    const defaultImage = `<span style="font-size: 3rem;">🎨</span>`;
+    const imageTag = product.image ? `<img src="${product.image}" alt="${escapeHtml(product.name)}">` : defaultImage;
+
+    return `
+      <div class="product-card">
+        <div class="product-image-container">
+          ${imageTag}
+        </div>
+        <div class="product-header">${escapeHtml(product.name)}</div>
+        <div class="product-desc">${escapeHtml(product.description || 'No description')}</div>
+        <div class="product-price">KES ${product.price.toLocaleString()}</div>
+        
+        <div class="product-actions">
+          <button onclick="editProduct(${product.id})" style="background: var(--copper); color: white;">
+            ✎ Edit
+          </button>
+          <button onclick="deleteProduct(${product.id})" style="background: var(--gunmetal); color: white;">
+            🗑 Delete
+          </button>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
+}
+
+// Add Product functions
+function openAddProductModal() {
+  document.getElementById('addProductForm').reset();
+  document.getElementById('addProductImage').value = '';
+  document.getElementById('addProductPreview').style.display = 'none';
+  document.getElementById('addUploadStatus').textContent = '';
+  document.getElementById('addProductModalBackdrop').style.display = 'flex';
+}
+
+function closeAddProductModal() {
+  document.getElementById('addProductModalBackdrop').style.display = 'none';
+}
+
+async function submitProductAdd(event) {
+  event.preventDefault();
+  
+  const name = document.getElementById('addProductName').value;
+  const description = document.getElementById('addProductDesc').value;
+  const price = document.getElementById('addProductPrice').value;
+  const image = document.getElementById('addProductImage').value;
+
+  try {
+    const response = await fetch('/api/products', {
+      method: 'POST',
+      headers: getJsonHeaders(),
+      body: JSON.stringify({ name, description, price: parseInt(price), image })
+    });
+
+    if (handleAuthError(response)) return;
+
+    if (response.ok) {
+      showMessage('productsMessage', 'Product created successfully', 'success');
+      closeAddProductModal();
+      loadProducts();
+      loadStats();
+    } else {
+      const error = await response.json();
+      showMessage('productsMessage', `Error: ${error.error}`, 'error');
+    }
+  } catch (error) {
+    console.error('Error adding product:', error);
+    showMessage('productsMessage', 'Error adding product', 'error');
+  }
+}
+
+// AJAX Image Upload
+async function handleImageUpload(event, type) {
+  const fileInput = event.target;
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  const statusId = type === 'add' ? 'addUploadStatus' : 'editUploadStatus';
+  const previewId = type === 'add' ? 'addProductPreview' : 'editProductPreview';
+  const hiddenInputId = type === 'add' ? 'addProductImage' : 'editProductImage';
+
+  const statusEl = document.getElementById(statusId);
+  const previewEl = document.getElementById(previewId);
+  const hiddenInput = document.getElementById(hiddenInputId);
+
+  statusEl.textContent = '⏳ Uploading image...';
+  statusEl.style.color = 'var(--gunmetal)';
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: formData
+    });
+
+    if (handleAuthError(response)) return;
+
+    const data = await response.json();
+
+    if (response.ok) {
+      hiddenInput.value = data.imageUrl;
+      previewEl.src = data.imageUrl;
+      previewEl.style.display = 'block';
+      statusEl.textContent = '✓ Image uploaded successfully';
+      statusEl.style.color = '#28a745';
+    } else {
+      statusEl.textContent = `❌ Upload failed: ${data.error}`;
+      statusEl.style.color = '#dc3545';
+      hiddenInput.value = '';
+    }
+  } catch (error) {
+    console.error('Error uploading image:', error);
+    statusEl.textContent = '❌ Upload failed due to connection error';
+    statusEl.style.color = '#dc3545';
+    hiddenInput.value = '';
+  }
 }
 
 async function deleteProduct(productId) {
@@ -287,8 +558,11 @@ async function deleteProduct(productId) {
 
   try {
     const response = await fetch(`/api/products/${productId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeaders()
     });
+
+    if (handleAuthError(response)) return;
 
     if (response.ok) {
       showMessage('productsMessage', `Product deleted`, 'success');
@@ -315,64 +589,27 @@ async function editProduct(productId) {
 
     const product = await response.json();
 
-    // Create or show edit modal
-    let modal = document.getElementById('editProductModal');
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = 'editProductModal';
-      modal.innerHTML = `
-        <div style="
-          position: fixed;
-          top: 0; left: 0; right: 0; bottom: 0;
-          background: rgba(0,0,0,0.7);
-          display: none;
-          align-items: center;
-          justify-content: center;
-          z-index: 10000;
-        " id="editProductModalBackdrop">
-          <div style="
-            background: white;
-            border-radius: 8px;
-            padding: 30px;
-            max-width: 500px;
-            width: 90%;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-          ">
-            <h2 style="color: #1e3c72; margin-top: 0;">Edit Product</h2>
-            <form id="editProductForm" onsubmit="submitProductEdit(event)">
-              <div style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Product Name *</label>
-                <input type="text" id="editProductName" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
-              </div>
-              <div style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Description</label>
-                <textarea id="editProductDesc" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; min-height: 100px;"></textarea>
-              </div>
-              <div style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Price (KES) *</label>
-                <input type="number" id="editProductPrice" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
-              </div>
-              <div style="margin-bottom: 2rem;">
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Image URL</label>
-                <input type="text" id="editProductImage" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
-              </div>
-              <div style="display: flex; gap: 10px;">
-                <button type="submit" style="flex: 1; padding: 10px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Save Changes</button>
-                <button type="button" onclick="closeEditModal()" style="flex: 1; padding: 10px; background: #ccc; color: #333; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(modal);
-    }
-
     // Populate form with product data
     document.getElementById('editProductName').value = product.name;
     document.getElementById('editProductDesc').value = product.description || '';
     document.getElementById('editProductPrice').value = product.price;
     document.getElementById('editProductImage').value = product.image || '';
     document.getElementById('editProductForm').dataset.productId = productId;
+
+    // Reset upload status and preview
+    const previewEl = document.getElementById('editProductPreview');
+    const statusEl = document.getElementById('editUploadStatus');
+    document.getElementById('editProductImageFile').value = '';
+    
+    if (product.image) {
+      previewEl.src = product.image;
+      previewEl.style.display = 'block';
+      statusEl.textContent = '✓ Current image loaded';
+      statusEl.style.color = 'var(--gunmetal)';
+    } else {
+      previewEl.style.display = 'none';
+      statusEl.textContent = '';
+    }
 
     // Show modal
     document.getElementById('editProductModalBackdrop').style.display = 'flex';
@@ -401,9 +638,11 @@ async function submitProductEdit(event) {
   try {
     const response = await fetch(`/api/products/${productId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getJsonHeaders(),
       body: JSON.stringify({ name, description, price: parseInt(price), image })
     });
+
+    if (handleAuthError(response)) return;
 
     if (response.ok) {
       showMessage('productsMessage', `Product updated successfully`, 'success');
@@ -447,6 +686,7 @@ function formatDate(dateString) {
 }
 
 function escapeHtml(text) {
+  if (!text) return '';
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
